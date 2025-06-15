@@ -25,110 +25,96 @@ function App() {
     }
   };
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!ingredients.trim()) return;
+  // Replace the handleSearch function in App.jsx
+const handleSearch = async (e) => {
+  e.preventDefault();
+  if (!ingredients.trim()) return;
+  
+  setIsLoading(true);
+  
+  try {
+    const searchData = {
+      ingredients: ingredients,
+      mood: mood,
+      userName: userName
+    };
     
-    setIsLoading(true);
+    const response = await fetch('http://localhost:5000/api/v1/recipes/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(searchData)
+    });
     
-    // Simulate API call
-    setTimeout(() => {
-      const mockRecipes = [
-        {
-          id: 1,
-          name: "Golden Sunset Pasta",
-          description: "A warm embrace in a bowl with creamy sauce and tender vegetables",
-          cookTime: "25 min",
-          difficulty: "Easy",
-          rating: 4.8,
-          image: "🍝",
-          ingredients: [
-            { name: "Pasta", amount: "200g" },
-            { name: "Heavy cream", amount: "150ml" },
-            { name: "Cherry tomatoes", amount: "150g" },
-            { name: "Fresh basil", amount: "10 leaves" },
-            { name: "Garlic", amount: "2 cloves" },
-            { name: "Parmesan cheese", amount: "50g" }
-          ],
-          instructions: [
-            "Bring a large pot of salted water to a gentle boil. Add pasta and cook until al dente.",
-            "While pasta dances in the water, heat olive oil in a large pan over medium heat.",
-            "Add minced garlic and let it release its wonderful aroma for about 30 seconds.",
-            "Toss in halved cherry tomatoes and cook until they start to burst with flavor.",
-            "Pour in the cream and let it simmer gently, creating a silky sauce.",
-            "Drain pasta, reserving a cup of that precious pasta water.",
-            "Combine pasta with the creamy sauce, adding pasta water if needed for perfect consistency.",
-            "Finish with fresh basil leaves and a generous sprinkle of Parmesan."
-          ],
-          tip: "Save some pasta water before draining - it's the secret to a silky smooth sauce that hugs every strand! ✨"
-        },
-        {
-          id: 2,
-          name: "Cozy Chicken Comfort Bowl",
-          description: "Tender chicken with fluffy rice and a sprinkle of love",
-          cookTime: "30 min",
-          difficulty: "Simple",
-          rating: 4.9,
-          image: "🍗",
-          ingredients: [
-            { name: "Chicken breast", amount: "300g" },
-            { name: "Jasmine rice", amount: "150g" },
-            { name: "Mixed vegetables", amount: "200g" },
-            { name: "Soy sauce", amount: "3 tbsp" },
-            { name: "Sesame oil", amount: "1 tbsp" },
-            { name: "Fresh ginger", amount: "1 inch" }
-          ],
-          instructions: [
-            "Start by giving your rice a gentle rinse until the water runs clear.",
-            "Cook rice with love - 1 cup rice to 1.5 cups water, bring to a boil then simmer for 15 minutes.",
-            "Season chicken with salt and pepper, then cook in a hot pan for 6-7 minutes each side.",
-            "Let the chicken rest for 5 minutes (patience makes it juicier!), then slice.",
-            "In the same pan, stir-fry your vegetables until they're tender-crisp.",
-            "Drizzle with soy sauce and sesame oil, toss everything together.",
-            "Serve over fluffy rice and enjoy this bowl of comfort."
-          ],
-          tip: "Let your chicken rest after cooking - this simple step keeps all those delicious juices locked in! 🥢"
-        },
-        {
-          id: 3,
-          name: "Garden Fresh Veggie Delight",
-          description: "A colorful celebration of fresh vegetables in perfect harmony",
-          cookTime: "20 min",
-          difficulty: "Effortless",
-          rating: 4.7,
-          image: "🥗",
-          ingredients: [
-            { name: "Mixed greens", amount: "200g" },
-            { name: "Bell peppers", amount: "2 pieces" },
-            { name: "Cucumber", amount: "1 large" },
-            { name: "Cherry tomatoes", amount: "150g" },
-            { name: "Avocado", amount: "1 ripe" },
-            { name: "Olive oil", amount: "3 tbsp" },
-            { name: "Lemon juice", amount: "2 tbsp" }
-          ],
-          instructions: [
-            "Wash all your beautiful vegetables with care - they're the stars of this dish.",
-            "Slice the bell peppers into colorful strips that catch the light.",
-            "Dice the cucumber into perfect little cubes, keeping some skin for texture.",
-            "Halve the cherry tomatoes to release their sweet juices.",
-            "Gently slice the avocado just before serving to keep it bright and fresh.",
-            "Whisk together olive oil and lemon juice with a pinch of salt.",
-            "Toss everything together and serve immediately while the colors are vibrant."
-          ],
-          tip: "Add the avocado at the very end to keep it perfectly green and creamy! 🥑"
-        }
-      ];
-      
-      setRecipes(mockRecipes);
-      setIsLoading(false);
-      setCurrentView('results');
-    }, 1500);
-  };
+    if (!response.ok) {
+      throw new Error('Search failed');
+    }
+    
+    const data = await response.json();
+    setRecipes(data.recipes);
+    setCurrentView('results');
+  } catch (error) {
+    console.error('Search error:', error);
+    // Fallback to mock data
+    setRecipes(mockRecipes);
+    setCurrentView('results');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const selectRecipe = (recipe) => {
     setSelectedRecipe(recipe);
     setCurrentView('recipe');
   };
+
+  const mockRecipes = [
+  {
+    id: 'mock-1',
+    name: 'Midnight Mac & Cheese',
+    description: 'Creamy, cheesy comfort in a bowl 🧀🌙',
+    cookTime: '20 min',
+    difficulty: 'Easy',
+    rating: 4.5,
+    image: '🧀',
+    ingredients: [
+      { name: 'Macaroni', amount: '200g' },
+      { name: 'Cheddar cheese', amount: '100g' },
+      { name: 'Milk', amount: '150ml' },
+      { name: 'Butter', amount: '2 tbsp' }
+    ],
+    instructions: [
+      'Boil the macaroni in salted water.',
+      'Melt butter and stir in milk.',
+      'Add cheese and melt to a silky sauce.',
+      'Combine with drained pasta and stir till creamy.'
+    ],
+    tip: 'Add a pinch of mustard powder for a flavor boost! 🌶️'
+  },
+  {
+    id: 'mock-2',
+    name: 'Lazy Day Salad',
+    description: 'Fresh veggies with a zesty twist 🥗',
+    cookTime: '10 min',
+    difficulty: 'Effortless',
+    rating: 4.2,
+    image: '🥗',
+    ingredients: [
+      { name: 'Lettuce', amount: '1 head' },
+      { name: 'Cucumber', amount: '1 sliced' },
+      { name: 'Tomatoes', amount: '2 diced' },
+      { name: 'Olive oil', amount: '2 tbsp' }
+    ],
+    instructions: [
+      'Chop all veggies into bite-sized pieces.',
+      'Toss in a bowl with olive oil and seasoning.',
+      'Serve chilled with lemon wedge.'
+    ],
+    tip: 'Sprinkle some toasted seeds for crunch!'
+  }
+];
+
 
   const goBack = () => {
     if (currentView === 'recipe') {
@@ -231,23 +217,45 @@ function App() {
 
       {/* Loading View */}
       {isLoading && (
-        <div className="min-h-screen flex items-center justify-center text-center">
-          <div className="bg-white p-12 rounded-2xl shadow-xl">
-            <div className="text-6xl mb-4 animate-bounce">👨‍🍳</div>
-            <h2 className="text-2xl text-gray-700 mb-2">Searching for your perfect match...</h2>
-            <p className="text-gray-600 mb-8">Looking through thousands of delicious possibilities</p>
-            <div className="flex justify-center gap-2">
-              {[0, 1, 2].map(i => (
-                <div
-                  key={i}
-                  className="w-3 h-3 bg-indigo-500 rounded-full animate-pulse"
-                  style={{ animationDelay: `${i * 0.2}s` }}
-                />
-              ))}
-            </div>
+  <div className="min-h-screen flex items-center justify-center text-center">
+    <div className="bg-white p-12 rounded-2xl shadow-xl">
+      <div className="text-6xl mb-4 animate-bounce">👨‍🍳</div>
+      <h2 className="text-2xl text-gray-700 mb-2">Cooking up something special...</h2>
+      <p className="text-gray-600 mb-8">Our AI chef is crafting your perfect recipes</p>
+      
+      {/* Animated cooking emojis */}
+      <div className="flex justify-center gap-4 mb-6">
+        {['🍕', '🥕', '🥣', '🍳', '🧄', '🌶️'].map((emoji, index) => (
+          <div
+            key={index}
+            className="text-3xl animate-bounce"
+            style={{ 
+              animationDelay: `${index * 0.2}s`,
+              animationDuration: '1.5s'
+            }}
+          >
+            {emoji}
           </div>
-        </div>
-      )}
+        ))}
+      </div>
+      
+      {/* Progress indicator */}
+      <div className="flex justify-center gap-2">
+        {[0, 1, 2].map(i => (
+          <div
+            key={i}
+            className="w-3 h-3 bg-indigo-500 rounded-full animate-pulse"
+            style={{ animationDelay: `${i * 0.3}s` }}
+          />
+        ))}
+      </div>
+      
+      <div className="mt-4 text-sm text-gray-500">
+        Analyzing ingredients and preferences...
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Results View */}
       {currentView === 'results' && (

@@ -1,140 +1,102 @@
-from flask import Blueprint, request, jsonify, current_app
-from flask_pymongo import PyMongo
-from models.ai_model import RecipeAIModel
-from models.recipe_model import Recipe, UserQuery
-from utils.db_utils import DatabaseManager
-from utils.validators import InputValidator
-import time
+from flask import Blueprint, request, jsonify
+from services.recipe_service import recipe_service
+from services.ai_service import ai_service
+from services.vector_search import vector_search_service
+from utils.validators import validate_search_request
 import logging
 
-# Create blueprint
-recipe_bp = Blueprint('recipes', __name__)
-
-# Initialize AI model (you might want to do this once at app startup)
-ai_model = RecipeAIModel()
-
-# Set up logging
 logger = logging.getLogger(__name__)
 
-@recipe_bp.route('/generate-recipe', methods=['POST'])
-def generate_recipe():
-    """
-    Main endpoint to generate recipes based on ingredients
-    
-    Expected JSON format:
-    {
-        "ingredients": ["chicken", "rice", "tomatoes"],
-        "preferences": ["baked", "high protein"]
-    }
-    """
-    start_time = time.time()
-    
+recipe_bp = Blueprint('recipes', __name__)
+
+@recipe_bp.route('/search', methods=['POST'])
+def search_recipes():
+    """Search for recipes based on ingredients and mood"""
     try:
-        # Get data from request
         data = request.get_json()
         
-        if not data:
+        # Validate request
+        validation_result = validate_search_request(data)
+        if not validation_result['valid']:
             return jsonify({
-                'success': False,
-                'error': 'No data provided! Send me some ingredients to work with!',
-                'humor': 'I may be an AI, but I still need ingredients to make magic happen! 🎩'
+                'error': validation_result['message']
             }), 400
         
-        # Extract ingredients and preferences
-        ingredients = data.get('ingredients', [])
-        preferences = data.get('preferences', [])
+        ingredients = data.get('ingredients', '').split(',')
+        ingredients = [ing.strip().lower() for ing in ingredients if ing.strip()]
+        mood = data.get('mood', 'comfort')
+        user_name = data.get('userName', 'Chef')
         
-        # Validate inputs
-        is_valid, message = InputValidator.validate_ingredients(ingredients)
-        if not is_valid:
+        if not ingredients:
             return jsonify({
-                'success': False,
-                'error': message,
-                'humor': 'Even Gordon Ramsay needs proper ingredients! 👨‍🍳'
+                'error': 'Please provide at least one ingredient'
             }), 400
         
-        is_valid, message = InputValidator.validate_preferences(preferences)
-        if not is_valid:
-            return jsonify({
-                'success': False,
-                'error': message,
-                'humor': 'Let\'s keep those preferences realistic, shall we? 😄'
-            }), 400
+        # Use AI service to generate personalized recipes
+        ai_recipes = ai_service.predict_recipes(ingredients, mood)
         
-        # Clean inputs
-        ingredients = [InputValidator.sanitize_input(ing) for ing in ingredients]
-        preferences = [InputValidator.sanitize_input(pref) for pref in preferences]
+        # Also search for similar recipes in database
+        similar_recipes = vector_search_service.search_similar_recipes(ingredients, limit=5)
         
-        # Check database for existing similar recipe (optional optimization)
-        db_manager = DatabaseManager(current_app.extensions['pymongo'])
-        existing_recipe = db_manager.get_recipe_by_ingredients(ingredients)
+        # Combine and format results
+        all_recipes = ai_recipes + similar_recipes[:2]  # AI recipes + top 2 similar
         
-        if existing_recipe and current_app.config.get('USE_CACHE', True):
-            logger.info("Returning cached recipe")
-            # Return existing recipe with updated timestamp
-            recipe_data = existing_recipe
-            recipe_data['cached'] = True
-        else:
-            # Generate new recipe using AI model
-            logger.info(f"Generating new recipe for ingredients: {ingredients}")
-            recipe_data = ai_model.generate_recipe(ingredients, preferences)
-            
-            # Save to database
-            if not recipe_data.get('error'):
-                recipe_obj = Recipe(
-                    dish_name=recipe_data['dish_name'],
-                    ingredients=recipe_data['ingredients_used'],
-                    steps=recipe_data['steps'],
-                    recipe_type=recipe_data['recipe_type'],
-                    cooking_time=recipe_data['cooking_time'],
-                    difficulty=recipe_data['difficulty'],
-                    intro=recipe_data.get('intro', ''),
-                    fun_fact=recipe_data.get('fun_fact', ''),
-                    chef_tip=recipe_data.get('chef_tip', '')
-                )
-                
-                db_manager.save_recipe(recipe_obj.to_dict())
+        # Ensure we have exactly 3 recipes
+        final_recipes = all_recipes[:3]
         
-        # Log user query for analytics
-        query_obj = UserQuery(
-            ingredients=ingredients,
-            preferences=preferences,
-            user_ip=request.remote_addr,
-            generated_recipe=recipe_data
-        )
-        query_obj.response_time = time.time() - start_time
-        db_manager.save_user_query(query_obj.to_dict())
+        # Add unique IDs
+        for i, recipe in enumerate(final_recipes):
+            recipe['id'] = i + 1
         
-        # Add performance info
-        recipe_data['response_time'] = f"{time.time() - start_time:.2f} seconds"
-        recipe_data['success'] = True
+        response = {
+            'recipes': final_recipes,
+            'searchQuery': {
+                'ingredients': ingredients,
+                'mood': mood,
+                'userName': user_name
+            },
+            'timestamp': str(datetime.utcnow())
+        }
         
-        return jsonify(recipe_data), 200
+        logger.info(f"Recipe search completed for {user_name}: {len(final_recipes)} recipes")
+        return jsonify(response)
         
     except Exception as e:
-        logger.error(f"Error generating recipe: {str(e)}")
+        logger.error(f"Recipe search error: {e}")
         return jsonify({
-            'success': False,
-            'error': 'Oops! Something went wrong in the kitchen!',
-            'humor': 'Even the best chefs burn toast sometimes. Let\'s try again! 🍞',
-            'details': str(e) if current_app.debug else 'Internal server error'
+            'error': 'An error occurred while searching for recipes'
         }), 500
 
-@recipe_bp.route('/popular-ingredients', methods=['GET'])
-def get_popular_ingredients():
-    """Get most popular ingredients from user queries"""
+@recipe_bp.route('/recipe/<int:recipe_id>', methods=['GET'])
+def get_recipe_details(recipe_id):
+    """Get detailed recipe information"""
     try:
-        db_manager = DatabaseManager(current_app.extensions['pymongo'])
-        popular = db_manager.get_popular_ingredients(limit=15)
+        recipe = recipe_service.get_recipe_by_id(recipe_id)
+        if not recipe:
+            return jsonify({'error': 'Recipe not found'}), 404
         
-        return jsonify({
-            'success': True,
-            'popular_ingredients': popular,
-            'message': 'Here are the ingredients everyone loves!'
-        }), 200
+        return jsonify(recipe)
     except Exception as e:
-        logger.error(f"Error retrieving popular ingredients: {e}")
-    return jsonify({
-        'success': False,
-        'message': 'Failed to retrieve popular ingredients.'
-    }), 500 
+        logger.error(f"Get recipe error: {e}")
+        return jsonify({'error': 'Recipe not found'}), 404
+
+@recipe_bp.route('/popular', methods=['GET'])
+def get_popular_recipes():
+    """Get popular recipes"""
+    try:
+        limit = request.args.get('limit', 10, type=int)
+        recipes = recipe_service.get_popular_recipes(limit)
+        return jsonify({'recipes': recipes})
+    except Exception as e:
+        logger.error(f"Popular recipes error: {e}")
+        return jsonify({'error': 'Unable to fetch popular recipes'}), 500
+
+@recipe_bp.route('/random', methods=['GET'])
+def get_random_recipe():
+    """Get a random recipe"""
+    try:
+        recipe = recipe_service.get_random_recipe()
+        return jsonify(recipe)
+    except Exception as e:
+        logger.error(f"Random recipe error: {e}")
+        return jsonify({'error': 'Unable to fetch random recipe'}), 500

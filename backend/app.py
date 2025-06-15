@@ -1,56 +1,72 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
-from flask_pymongo import PyMongo
-from config import config
-import os
+from config import Config
+from utils.database import db_connection
+from routes.recipe_routes import recipe_bp
+from routes.user_routes import user_bp
 import logging
+from datetime import datetime
 
-# Initialize extensions
-mongo = PyMongo()
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
-def create_app(config_name=None):
-    """Application factory pattern"""
-    if config_name is None:
-        config_name = os.getenv('FLASK_ENV', 'development')
-    
+logger = logging.getLogger(__name__)
+
+def create_app():
     app = Flask(__name__)
+    app.config.from_object(Config)
     
-    # Load configuration
-    app.config.from_object(config[config_name])
+    # Enable CORS for React frontend
+    CORS(app, origins=["http://localhost:3000", "http://localhost:5173"])
     
-    # Initialize extensions
-    mongo.init_app(app)
-    
-    # Configure CORS for your React frontend
-    CORS(app, origins=[
-        'http://localhost:5173',  # Vite default port
-        'http://localhost:3000',  # React default port
-        'http://127.0.0.1:5173',
-        'http://127.0.0.1:3000'
-    ])
-    
-    # Set up logging
-    if not app.debug:
-        logging.basicConfig(level=logging.INFO)
+    # Initialize database connection
+    try:
+        db_connection.connect()
+        logger.info("Database connected successfully")
+    except Exception as e:
+        logger.error(f"Database connection failed: {e}")
     
     # Register blueprints
-    from routes.recipe_routes import recipe_bp
-    from routes import health_bp
+    app.register_blueprint(recipe_bp, url_prefix=f'/api/{Config.API_VERSION}/recipes')
+    app.register_blueprint(user_bp, url_prefix=f'/api/{Config.API_VERSION}/users')
     
-    app.register_blueprint(health_bp, url_prefix='/api')
-    app.register_blueprint(recipe_bp, url_prefix='/api/recipes')
+    # Health check endpoint
+    @app.route('/health')
+    def health_check():
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.utcnow().isoformat(),
+            'version': Config.API_VERSION
+        })
     
     # Root endpoint
     @app.route('/')
-    def index():
-        return {
-            'message': 'Welcome to RecipeFinder Backend! 🍳',
-            'status': 'running',
-            'version': '1.0.0'
-        }
+    def root():
+        return jsonify({
+            'message': 'Recipe AI Backend API',
+            'version': Config.API_VERSION,
+            'endpoints': {
+                'health': '/health',
+                'recipes': f'/api/{Config.API_VERSION}/recipes',
+                'users': f'/api/{Config.API_VERSION}/users'
+            }
+        })
+    
+    # Error handlers
+    @app.errorhandler(404)
+    def not_found(error):
+        return jsonify({'error': 'Endpoint not found'}), 404
+    
+    @app.errorhandler(500)
+    def internal_error(error):
+        logger.error(f"Internal server error: {error}")
+        return jsonify({'error': 'Internal server error'}), 500
     
     return app
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=Config.FLASK_ENV == 'development', host='0.0.0.0', port=5000)
