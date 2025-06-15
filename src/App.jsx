@@ -25,96 +25,122 @@ function App() {
     }
   };
 
-  // Replace the handleSearch function in App.jsx
-const handleSearch = async (e) => {
-  e.preventDefault();
-  if (!ingredients.trim()) return;
-  
-  setIsLoading(true);
-  
-  try {
-    const searchData = {
-      ingredients: ingredients,
-      mood: mood,
-      userName: userName
-    };
+  // Enhanced search function with better error handling
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (!ingredients.trim()) return;
     
-    const response = await fetch('http://localhost:5000/api/v1/recipes/search', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(searchData)
-    });
+    setIsLoading(true);
     
-    if (!response.ok) {
-      throw new Error('Search failed');
+    try {
+      const searchData = {
+        ingredients: ingredients,
+        mood: mood,
+        userName: userName
+      };
+      
+      const response = await fetch('http://localhost:5000/api/v1/recipes/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(searchData)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Search failed: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.success && data.recipes) {
+        setRecipes(data.recipes);
+        setCurrentView('results');
+      } else {
+        throw new Error('Invalid response format');
+      }
+      
+    } catch (error) {
+      console.error('Search error:', error);
+      // Enhanced fallback with more variety
+      setRecipes(generateFallbackRecipes(ingredients, mood));
+      setCurrentView('results');
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  const generateFallbackRecipes = (ingredients, mood) => {
+    const ingredientList = ingredients.split(',').map(ing => ing.trim());
     
-    const data = await response.json();
-    setRecipes(data.recipes);
-    setCurrentView('results');
-  } catch (error) {
-    console.error('Search error:', error);
-    // Fallback to mock data
-    setRecipes(mockRecipes);
-    setCurrentView('results');
-  } finally {
-    setIsLoading(false);
-  }
-};
+    return [
+      {
+        id: 'fallback-1',
+        name: `${mood.charAt(0).toUpperCase() + mood.slice(1)} ${ingredientList[0]?.charAt(0).toUpperCase() + ingredientList[0]?.slice(1)} Bowl`,
+        description: `A delightful ${mood} dish featuring your favorite ingredients`,
+        cookTime: '25 min',
+        difficulty: 'Easy',
+        rating: 4.6,
+        image: mood === 'comfort' ? '🍲' : mood === 'fresh' ? '🥗' : '✨',
+        ingredients: ingredientList.slice(0, 5).map(ing => ({
+          name: ing.charAt(0).toUpperCase() + ing.slice(1),
+          amount: 'as needed'
+        })),
+        instructions: [
+          'Prepare your ingredients with care and attention.',
+          'Cook them together until perfectly tender.',
+          'Season to taste and serve with love.',
+          'Enjoy your personalized creation!'
+        ],
+        tip: 'Trust your instincts - you know your taste best! 👨‍🍳'
+      },
+      {
+        id: 'fallback-2',
+        name: `Chef's Special ${ingredientList[1]?.charAt(0).toUpperCase() + ingredientList[1]?.slice(1) || 'Surprise'}`,
+        description: `A creative fusion of your ingredients in perfect harmony`,
+        cookTime: '30 min',
+        difficulty: 'Medium',
+        rating: 4.7,
+        image: '🍽️',
+        ingredients: ingredientList.slice(0, 6).map(ing => ({
+          name: ing.charAt(0).toUpperCase() + ing.slice(1),
+          amount: 'to taste'
+        })),
+        instructions: [
+          'Start by preparing your main ingredients.',
+          'Combine them using your preferred cooking method.',
+          'Add seasonings and let flavors develop.',
+          'Plate beautifully and enjoy!'
+        ],
+        tip: 'Cooking is an art - let your creativity shine! ✨'
+      },
+      {
+        id: 'fallback-3',
+        name: `Simple ${mood.charAt(0).toUpperCase() + mood.slice(1)} Delight`,
+        description: `Sometimes the simplest dishes are the most satisfying`,
+        cookTime: '20 min',
+        difficulty: 'Simple',
+        rating: 4.8,
+        image: '💚',
+        ingredients: ingredientList.slice(0, 4).map(ing => ({
+          name: ing.charAt(0).toUpperCase() + ing.slice(1),
+          amount: '1 portion'
+        })),
+        instructions: [
+          'Keep it simple and focus on quality.',
+          'Let each ingredient shine.',
+          'Cook with patience and love.',
+          'Savor every bite!'
+        ],
+        tip: 'The best meals come from the heart! 💚'
+      }
+    ];
+  };
 
   const selectRecipe = (recipe) => {
     setSelectedRecipe(recipe);
     setCurrentView('recipe');
   };
-
-  const mockRecipes = [
-  {
-    id: 'mock-1',
-    name: 'Midnight Mac & Cheese',
-    description: 'Creamy, cheesy comfort in a bowl 🧀🌙',
-    cookTime: '20 min',
-    difficulty: 'Easy',
-    rating: 4.5,
-    image: '🧀',
-    ingredients: [
-      { name: 'Macaroni', amount: '200g' },
-      { name: 'Cheddar cheese', amount: '100g' },
-      { name: 'Milk', amount: '150ml' },
-      { name: 'Butter', amount: '2 tbsp' }
-    ],
-    instructions: [
-      'Boil the macaroni in salted water.',
-      'Melt butter and stir in milk.',
-      'Add cheese and melt to a silky sauce.',
-      'Combine with drained pasta and stir till creamy.'
-    ],
-    tip: 'Add a pinch of mustard powder for a flavor boost! 🌶️'
-  },
-  {
-    id: 'mock-2',
-    name: 'Lazy Day Salad',
-    description: 'Fresh veggies with a zesty twist 🥗',
-    cookTime: '10 min',
-    difficulty: 'Effortless',
-    rating: 4.2,
-    image: '🥗',
-    ingredients: [
-      { name: 'Lettuce', amount: '1 head' },
-      { name: 'Cucumber', amount: '1 sliced' },
-      { name: 'Tomatoes', amount: '2 diced' },
-      { name: 'Olive oil', amount: '2 tbsp' }
-    ],
-    instructions: [
-      'Chop all veggies into bite-sized pieces.',
-      'Toss in a bowl with olive oil and seasoning.',
-      'Serve chilled with lemon wedge.'
-    ],
-    tip: 'Sprinkle some toasted seeds for crunch!'
-  }
-];
-
 
   const goBack = () => {
     if (currentView === 'recipe') {
@@ -215,47 +241,56 @@ const handleSearch = async (e) => {
         </div>
       )}
 
-      {/* Loading View */}
+      {/* Enhanced Loading View with Cooking Animations */}
       {isLoading && (
-  <div className="min-h-screen flex items-center justify-center text-center">
-    <div className="bg-white p-12 rounded-2xl shadow-xl">
-      <div className="text-6xl mb-4 animate-bounce">👨‍🍳</div>
-      <h2 className="text-2xl text-gray-700 mb-2">Cooking up something special...</h2>
-      <p className="text-gray-600 mb-8">Our AI chef is crafting your perfect recipes</p>
-      
-      {/* Animated cooking emojis */}
-      <div className="flex justify-center gap-4 mb-6">
-        {['🍕', '🥕', '🥣', '🍳', '🧄', '🌶️'].map((emoji, index) => (
-          <div
-            key={index}
-            className="text-3xl animate-bounce"
-            style={{ 
-              animationDelay: `${index * 0.2}s`,
-              animationDuration: '1.5s'
-            }}
-          >
-            {emoji}
+        <div className="min-h-screen flex items-center justify-center text-center">
+          <div className="bg-white p-12 rounded-2xl shadow-xl max-w-md">
+            <div className="text-6xl mb-4 animate-bounce">👨‍🍳</div>
+            <h2 className="text-2xl text-gray-700 mb-2">Cooking up something special...</h2>
+            <p className="text-gray-600 mb-8">Our AI chef is crafting your perfect recipes</p>
+            
+            {/* Enhanced animated cooking emojis */}
+            <div className="flex justify-center gap-3 mb-6 flex-wrap">
+              {['🍕', '🥕', '🥣', '🍳', '🧄', '🌶️', '🥘', '🍅', '🧅'].map((emoji, index) => (
+                <div
+                  key={index}
+                  className="text-2xl animate-bounce"
+                  style={{ 
+                    animationDelay: `${index * 0.15}s`,
+                    animationDuration: '1.2s'
+                  }}
+                >
+                  {emoji}
+                </div>
+              ))}
+            </div>
+            
+            {/* Enhanced progress indicator */}
+            <div className="flex justify-center gap-2 mb-4">
+              {[0, 1, 2, 3, 4].map(i => (
+                <div
+                  key={i}
+                  className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"
+                  style={{ 
+                    animationDelay: `${i * 0.2}s`,
+                    animationDuration: '1s'
+                  }}
+                />
+              ))}
+            </div>
+            
+            {/* Rotating cooking tips */}
+            <div className="text-sm text-gray-500 italic">
+              {[
+                "Analyzing your ingredients...",
+                "Finding flavor combinations...",
+                "Crafting personalized recipes...",
+                "Adding the perfect finishing touches..."
+              ][Math.floor(Date.now() / 1000) % 4]}
+            </div>
           </div>
-        ))}
-      </div>
-      
-      {/* Progress indicator */}
-      <div className="flex justify-center gap-2">
-        {[0, 1, 2].map(i => (
-          <div
-            key={i}
-            className="w-3 h-3 bg-indigo-500 rounded-full animate-pulse"
-            style={{ animationDelay: `${i * 0.3}s` }}
-          />
-        ))}
-      </div>
-      
-      <div className="mt-4 text-sm text-gray-500">
-        Analyzing ingredients and preferences...
-      </div>
-    </div>
-  </div>
-)}
+        </div>
+      )}
 
       {/* Results View */}
       {currentView === 'results' && (
